@@ -1,0 +1,79 @@
+
+
+import theano
+import theano.tensor as T
+
+
+activation = T.tanh
+
+n_hidden = 100
+n_latent = 20
+
+
+index = T.lscalar()
+x = T.matrix('x')
+
+rng = numpy.random.RandomState(1234)
+
+
+# layer 1 of encoder
+
+W_encoder_1_values = numpy.asarray(
+    rng.uniform(
+        low = -numpy.sqrt( 6. / (28*28 + n_hidden) ),
+        high = numpy.sqrt( 6. / (28*28 + n_hidden) ),
+        size = (28*28, n_hidden)
+    ),
+    dtype = theano.config.floatX
+)
+W_encoder_1 = theano.shared( value=W_encoder_1_values, 
+                             name='W',
+                             borrow=True 
+                             )
+
+b_encoder_1_values = numpy.zeros( (n_hidden,), dtype = theano.config.floatX )
+b_encoder_1 = theano.shared( value=b_values, name='b', borrow=True )
+
+encoder_layer_1_out = activation( T.dot(x,W_encoder_1) + b_encoder_1 )
+                             
+
+# layer 2 of encoder
+
+W_encoder_mu_values = numpy.asarray(
+    rng.uniform(
+        low = -numpy.sqrt( 6. / (n_hidden + 1) ),
+        high = numpy.sqrt( 6. / (n_hidden + 1) ),
+        size = (n_hidden,1)
+    ),
+    dtype = theano.config.floatX
+)
+W_encoder_mu = theano.shared( value=W_encoder_1_values, 
+                             name='W',
+                             borrow=True 
+                             )
+
+b_encoder_mu_values = numpy.zeros( (n_hidden,), dtype = theano.config.floatX )
+b_encoder_mu = theano.shared( value=b_values, name='b', borrow=True )
+
+encoder_mu = T.dot(encoder_layer_1_out,W_encoder_mu) + b_encoder_mu 
+
+W_encoder_lognu_values = numpy.asarray(
+    rng.uniform(
+        low = -numpy.sqrt( 6. / (n_hidden + 1) ),
+        high = numpy.sqrt( 6. / (n_hidden + 1) ),
+        size = (n_hidden,1)
+    ),
+    dtype = theano.config.floatX
+)
+W_encoder_lognu = theano.shared( value=W_encoder_1_values, 
+                             name='W',
+                             borrow=True 
+                             )
+
+b_encoder_lognu_values = numpy.zeros( (n_hidden,), dtype = theano.config.floatX )
+b_encoder_lognu = theano.shared( value=b_values, name='b', borrow=True )
+
+encoder_lognu = T.dot(encoder_layer_1_out,W_encoder_lognu) + b_encoder_lognu 
+
+
+
