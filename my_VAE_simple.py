@@ -230,6 +230,8 @@ while(epoch < n_epochs) and (not done_looping):
                 print(('    epoch %i, minibatch %i/%i, best model %f %%')
                       % (epoch, minibatch_index + 1, n_train_batches))
 
+        
+
         if patience <= iter:
             done_looping = True
             break
