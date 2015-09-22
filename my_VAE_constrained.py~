@@ -8,6 +8,7 @@ from theano import sandbox, Out
 
 theano.config.floatX = 'float32'
 
+epsilon = 0.05
 activation = T.tanh
 n_hidden = 500
 n_latent = 30
@@ -19,8 +20,6 @@ n_vis = 28 ** 2
 rng = numpy.random.RandomState(1234)
 srng = RandomStreams(seed=234)
 
-#x_vals = numpy.zeros((batch_size, n_vis), dtype=theano.config.floatX)
-#x = theano.shared(value=x_vals, name='x')
 x = T.matrix('x')
 
 # Define layers of encoder and decoder #####
@@ -48,7 +47,7 @@ encoder_layer_1_out = activation(T.dot(x, W_encoder_1) + b_encoder_1)
 
 # layer 2 of encoder
 
-W_encoder_mu_values = numpy.asarray(
+W_encoder_2_values = numpy.asarray(
     rng.uniform(
         low=-numpy.sqrt(6. / (n_hidden + n_latent)),
         high=numpy.sqrt(6. / (n_hidden + n_latent)),
@@ -56,39 +55,21 @@ W_encoder_mu_values = numpy.asarray(
     ),
     dtype=theano.config.floatX
 )
-W_encoder_mu = theano.shared(value=W_encoder_mu_values,
-                             name='W_encoder_mu',
+W_encoder_2 = theano.shared(value=W_encoder_2_values,
+                             name='W_encoder_2',
                              borrow=True
                              )
 
-b_encoder_mu_values = numpy.zeros((n_latent,), dtype=theano.config.floatX)
-b_encoder_mu = theano.shared(value=b_encoder_mu_values,
-                             name='b_encoder_mu', borrow=True)
+b_encoder_2_values = numpy.zeros((n_latent,), dtype=theano.config.floatX)
+b_encoder_2 = theano.shared(value=b_encoder_2_values,
+                             name='b_encoder_2', borrow=True)
 
-encoder_mu = T.dot(encoder_layer_1_out, W_encoder_mu) + b_encoder_mu
+encoder_2 = T.dot(encoder_layer_1_out, W_encoder_2) + b_encoder_2
 
-W_encoder_lognu_values = numpy.asarray(
-    rng.uniform(
-        low=-numpy.sqrt(6. / (n_hidden + n_latent)),
-        high=numpy.sqrt(6. / (n_hidden + n_latent)),
-        size=(n_hidden, n_latent)
-    ),
-    dtype=theano.config.floatX
-)
-
-W_encoder_lognu = theano.shared(value=W_encoder_lognu_values,
-                                name='W_encoder_lognu',
-                                borrow=True
-                                )
-
-b_encoder_lognu_values = numpy.zeros((n_latent,), dtype=theano.config.floatX)
-b_encoder_lognu = theano.shared(value=b_encoder_lognu_values,
-                                name='b_encoder_lognu', borrow=True)
-
-encoder_lognu = T.dot(encoder_layer_1_out, W_encoder_lognu) + b_encoder_lognu
-
-z = encoder_mu + T.exp(0.5 * encoder_lognu) * srng.normal(size=encoder_mu.shape,
-                                                          dtype=encoder_mu.dtype)
+z = encoder_2 + epsilon * srng.uniform(size=encoder_2,
+                                       low=-1., high=1., dtype = encoder_2.dtype)
+# T.exp(0.5 * encoder_lognu) * srng.normal(size=encoder_mu.shape,
+#                                                          dtype=encoder_mu.dtype)
 
 
 # layer 1 of decoder
@@ -286,7 +267,11 @@ while(epoch < n_epochs) and (not done_looping):
 
                 with open('/data/lisatmp3/shahamar/VAE_model2.pkl', 'w') as f:
                     cPickle.dump(dict, f)
+
                     
+dict['final_train_nll'] = this_train_negll
+with open('/data/lisatmp3/shahamar/VAE_model2.pkl', 'w') as f:
+    cPickle.dump(dict, f)
 
 #        if patience <= iter:
 #            done_looping = True

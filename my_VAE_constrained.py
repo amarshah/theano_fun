@@ -5,22 +5,22 @@ import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 from theano import sandbox, Out
+from theano.scalar.basic_scipy import gammaln
 
 theano.config.floatX = 'float32'
 
+epsilon = 0.1
 activation = T.tanh
 n_hidden = 500
 n_latent = 30
 batch_size = 100
 learning_rate = 0.0001
-n_epochs = 4000
+n_epochs = 400
 n_vis = 28 ** 2
 
 rng = numpy.random.RandomState(1234)
 srng = RandomStreams(seed=234)
 
-#x_vals = numpy.zeros((batch_size, n_vis), dtype=theano.config.floatX)
-#x = theano.shared(value=x_vals, name='x')
 x = T.matrix('x')
 
 # Define layers of encoder and decoder #####
@@ -48,7 +48,7 @@ encoder_layer_1_out = activation(T.dot(x, W_encoder_1) + b_encoder_1)
 
 # layer 2 of encoder
 
-W_encoder_mu_values = numpy.asarray(
+W_encoder_2_values = numpy.asarray(
     rng.uniform(
         low=-numpy.sqrt(6. / (n_hidden + n_latent)),
         high=numpy.sqrt(6. / (n_hidden + n_latent)),
@@ -56,39 +56,21 @@ W_encoder_mu_values = numpy.asarray(
     ),
     dtype=theano.config.floatX
 )
-W_encoder_mu = theano.shared(value=W_encoder_mu_values,
-                             name='W_encoder_mu',
+W_encoder_2 = theano.shared(value=W_encoder_2_values,
+                             name='W_encoder_2',
                              borrow=True
                              )
 
-b_encoder_mu_values = numpy.zeros((n_latent,), dtype=theano.config.floatX)
-b_encoder_mu = theano.shared(value=b_encoder_mu_values,
-                             name='b_encoder_mu', borrow=True)
+b_encoder_2_values = numpy.zeros((n_latent,), dtype=theano.config.floatX)
+b_encoder_2 = theano.shared(value=b_encoder_2_values,
+                             name='b_encoder_2', borrow=True)
 
-encoder_mu = T.dot(encoder_layer_1_out, W_encoder_mu) + b_encoder_mu
+encoder_2 = T.dot(encoder_layer_1_out, W_encoder_2) + b_encoder_2
 
-W_encoder_lognu_values = numpy.asarray(
-    rng.uniform(
-        low=-numpy.sqrt(6. / (n_hidden + n_latent)),
-        high=numpy.sqrt(6. / (n_hidden + n_latent)),
-        size=(n_hidden, n_latent)
-    ),
-    dtype=theano.config.floatX
-)
-
-W_encoder_lognu = theano.shared(value=W_encoder_lognu_values,
-                                name='W_encoder_lognu',
-                                borrow=True
-                                )
-
-b_encoder_lognu_values = numpy.zeros((n_latent,), dtype=theano.config.floatX)
-b_encoder_lognu = theano.shared(value=b_encoder_lognu_values,
-                                name='b_encoder_lognu', borrow=True)
-
-encoder_lognu = T.dot(encoder_layer_1_out, W_encoder_lognu) + b_encoder_lognu
-
-z = encoder_mu + T.exp(0.5 * encoder_lognu) * srng.normal(size=encoder_mu.shape,
-                                                          dtype=encoder_mu.dtype)
+z = encoder_2 + epsilon * srng.uniform(size=encoder_2.shape,
+                                       low=-1., high=1., dtype = encoder_2.dtype)
+# T.exp(0.5 * encoder_lognu) * srng.normal(size=encoder_mu.shape,
+#                                                          dtype=encoder_mu.dtype)
 
 
 # layer 1 of decoder
@@ -165,13 +147,23 @@ valid_set_x = (valid_set_x > 0.5).astype('float32')
 
 # Define cost and train and validate functions #####
 
-#index = T.lscalar()
 
-KL_divergence = T.cast(-0.5*(1 + encoder_lognu - encoder_mu**2
-                      - T.exp(encoder_lognu)).sum(axis=1), 'float32')
+log_ball_vol_D = n_latent * (0.5 * T.log(3.14159) 
+                             + T.log(epsilon)) - T.log(gammaln(0.5 * n_latent + 1))
+
+log_ball_vol_D_minus_1 = (n_latent - 1) * (0.5 * T.log(3.14159) 
+                             + T.log(epsilon)) - T.log(gammaln(0.5 * n_latent + 0.5))
+
+KL_term = T.cast(-log_ball_vol_D + 0.5 * T.log(2 * 3.14159) +
+                  epsilon * n_latent / 3 * T.exp(log_ball_vol_D_minus_1 - log_ball_vol_D) *
+                  (epsilon **2 + 3 * (encoder_2 * encoder_2).sum(axis=1)), 
+                  theano.config.floatX)
+
+#KL_divergence = T.cast(-0.5*(1 + encoder_lognu - encoder_mu**2
+#                      - T.exp(encoder_lognu)).sum(axis=1), 'float32')
 reconstruction_term = T.cast((x*T.log(decoder_p) +
                        (1-x)*T.log(1 - decoder_p)).sum(axis=1), 'float32')
-cost = (KL_divergence - reconstruction_term).mean()
+cost = (KL_term - reconstruction_term).mean()
 
 validate_model = theano.function(
     inputs=[x],
@@ -182,7 +174,7 @@ validate_model = theano.function(
 )
 
 encoder_params = [W_encoder_1, b_encoder_1,
-                  W_encoder_mu, b_encoder_mu, W_encoder_lognu, b_encoder_lognu]
+                  W_encoder_2, b_encoder_2]
 decoder_params = [W_decoder_1, b_decoder_1, W_decoder_p, b_decoder_p]
 all_params = encoder_params + decoder_params
 
@@ -231,7 +223,7 @@ while(epoch < n_epochs) and (not done_looping):
   #  x = train_set_x[0:batch_size] 
   #  import pdb; pdb.set_trace()
 
-    if epoch % 10 == 0:
+    if epoch % 5 == 0:
         train_negll = trainate_model(train_set_x)
         this_train_negll = numpy.mean(train_negll)
         print(
@@ -274,21 +266,23 @@ while(epoch < n_epochs) and (not done_looping):
 
                 dict = {'W_encoder_1': W_encoder_1.get_value(),
                         'b_encoder_1': b_encoder_1.get_value(),
-                        'W_encoder_mu': W_encoder_mu.get_value(),
-                        'b_encoder_mu': b_encoder_mu.get_value(),
-                        'W_encoder_lognu': W_encoder_lognu.get_value(),
-                        'b_encoder_lognu': b_encoder_lognu.get_value(),
+                        'W_encoder_2': W_encoder_2.get_value(),
+                        'b_encoder_2': b_encoder_2.get_value(),
                         'W_decoder_1': W_decoder_1.get_value(),
                         'b_decoder_1': b_decoder_1.get_value(),
                         'W_decoder_p': W_decoder_p.get_value(),
                         'b_decoder_p': b_decoder_p.get_value()
                         }
 
-                with open('/data/lisatmp3/shahamar/VAE_model2.pkl', 'w') as f:
+                with open('/data/lisatmp3/shahamar/VAE_compress.pkl', 'w') as f:
                     cPickle.dump(dict, f)
+
                     
 
 #        if patience <= iter:
 #            done_looping = True
 #            break
 
+dict['final_train_nll'] = this_train_negll
+with open('/data/lisatmp3/shahamar/VAE_compress.pkl', 'w') as f:
+    cPickle.dump(dict, f)

@@ -1,0 +1,13 @@
+
+import theano, blocks
+import theano.tensor as T
+from blocks.bricks import MLP
+
+n_vis = 28 ** 2
+n_hidden = 500
+n_latent = 20
+
+x = T.matrix('x')
+
+encoder_mu = MLP(activations=[Tanh(), None],
+                 dims=[n_vis, n_hidden, 1],

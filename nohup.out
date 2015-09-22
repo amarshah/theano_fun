@@ -1,0 +1,43 @@
+Using gpu device 0: GeForce GTX TITAN Black
+(1, 563.91479)
+(2, 296.70679)
+(3, 242.908)
+(4, 228.08762)
+(5, 219.72496)
+(6, 215.54535)
+(7, 212.51535)
+(8, 209.02379)
+(9, 207.88486)
+(10, 205.58777)
+(11, 202.89098)
+(12, 201.97516)
+(13, 200.07222)
+(14, 196.75493)
+(15, 193.98409)
+(16, 192.00922)
+(17, 190.35684)
+(18, 188.39496)
+(19, 186.44699)
+(20, 184.54417)
+(21, 182.94286)
+(22, 182.61075)
+(23, 180.38869)
+(24, 177.65437)
+(25, 176.1384)
+(26, 175.03996)
+(27, 173.71719)
+Traceback (most recent call last):
+  File "my_VAE_gpu.py", line 245, in <module>
+    minibatch_avg_cost = train_model(x)
+  File "/u/shahamar/.local/lib/python2.7/site-packages/theano/compile/function_module.py", line 595, in __call__
+    outputs = self.fn()
+  File "/u/shahamar/.local/lib/python2.7/site-packages/theano/gof/op.py", line 767, in rval
+    def rval(p=p, i=node_input_storage, o=node_output_storage, n=node):
+KeyboardInterrupt
+Using gpu device 0: GeForce GTX TITAN Black
+Traceback (most recent call last):
+  File "my_VAE_gpu.py", line 141, in <module>
+    train_set, valid_set, test_set = cPickle.load(f)
+  File "/u/lisa/local/install_package.fc14_v3/Canopy1.4/appdata/canopy-1.4.0.1938.rh5-x86_64/lib/python2.7/gzip.py", line 268, in read
+    chunk = self.extrabuf[offset: offset + size]
+KeyboardInterrupt
