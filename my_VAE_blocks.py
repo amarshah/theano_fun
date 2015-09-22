@@ -25,7 +25,7 @@ batch_size = 100
 n_epochs = 2
 learning_rate = 0.001
 
-x = T.matrix('x')
+x = T.matrix('features')
 
 # Define the graph
 
@@ -68,9 +68,10 @@ encoder_lognu.biases_init = Constant(0)
 
 
 mnist = MNIST(("train",))
+
 data_stream = Flatten(DataStream.default_stream(
         mnist,
-        iteration_scheme=SequentialScheme(mnist.num_examples, batch_size=batch_size)))
+        iteration_scheme=SequentialScheme(mnist.num_examples, batch_size=100)))
 
 cg = ComputationGraph(cost)
 algorithm = GradientDescent(cost=cost, 
