@@ -1,6 +1,6 @@
 import argparse
 import itertools
-
+import cPickle
 import theano
 from matplotlib import cm, pyplot
 from blocks.bricks import Random
@@ -10,7 +10,9 @@ from blocks.serialization import load
 
 
 def make_sampling_computation_graph(model_path, num_samples):
-    main_loop = load(model_path)
+  #  f = file(model_path, 'rb')
+    main_loop = load(model_path)#cPickle.load(f)
+  #  f.close()
     model = main_loop.model
     selector = Selector(model.top_bricks)
     decoder_mlp, = selector.select('/decoder_network').bricks

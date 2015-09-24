@@ -53,7 +53,7 @@ decoder_p = decoder_network.apply(z)
 
 # Define the cost
  
-KL_term = -0.5 * (1 + encoder_lognu -T.exp(encoder_lognu) - encoder_mu ** 2 ).sum(axis=1)
+KL_term = -0.5 * (1 + encoder_lognu -T.exp(encoder_lognu) - encoder_mu ** 2).sum(axis=1)
 reconstruction_term = (x * T.log(decoder_p) + 
                        (1 - x) * T.log(1 - decoder_p)).sum(axis=1) 
 cost = (KL_term -reconstruction_term).mean()
@@ -103,7 +103,10 @@ main_loop = MainLoop(model=model,
                                  FinishAfter(after_n_epochs=n_epochs), 
                                  Printing(),
                                  ProgressBar(),
-                                 Checkpoint('VAE_model.zip', every_n_epochs=save_freq)]
+                                 Checkpoint('VAE_model.zip',
+                                            every_n_epochs=save_freq,
+                                            save_separately=['model', 'log'])
+                     ]
             )
 
 main_loop.run() 
