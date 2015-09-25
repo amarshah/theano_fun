@@ -1,4 +1,5 @@
 
+
 import theano, blocks, fuel
 import theano.tensor as T
 from theano.scalar.basic_scipy import gammaln
@@ -13,7 +14,7 @@ from blocks.main_loop import MainLoop
 from blocks.model import Model
 from blocks.graph import ComputationGraph
 from blocks.extensions import FinishAfter, Printing
-from fuel.datasets import MNIST
+from fuel.datasets import BinarizedMNIST
 from fuel.streams import DataStream
 from fuel.schemes import SequentialScheme
 from fuel.transformers import Flatten
@@ -21,15 +22,15 @@ from fuel.transformers import Flatten
 
 srng = RandomStreams(seed=234)
 
-epsilon = 0.1
+epsilon = 0.25
 n_vis = 28 ** 2
 n_hidden = 500
 n_latent = 20
 batch_size = 100
 n_epochs = 4000
-learning_rate = 0.00025
-save_freq = 10
-model_save = 'VAE_constrained_model2.zip'
+learning_rate = 0.0001
+save_freq = 20
+model_save = 'VAE_constrained_model.pkl'
 
 x = T.matrix('features')
 
@@ -57,8 +58,7 @@ reconstruction_term = (x * T.log(decoder_p) +
                        (1 - x) * T.log(1 - decoder_p)).sum(axis=1) 
 log_ball_volume = n_latent * (0.5 * T.log(3.14159) 
                               + T.log(epsilon)) - gammaln(0.5 * n_latent + 1) 
-cost = -T.exp(log_ball_volume) * (prior_term
-                                  + reconstruction_term).mean()
+cost = - (prior_term + reconstruction_term).mean()
 cost.name = 'negative_log_likelihood'
 
 
@@ -77,7 +77,7 @@ for layer in decoder_network.linear_transformations:
 decoder_network.initialize()
 
 
-mnist = MNIST(("train",), sources=('features',))
+mnist = BinarizedMNIST(("train",), sources=('features',))
 
 train_data_stream = Flatten(DataStream.default_stream(
         mnist,
@@ -105,7 +105,10 @@ main_loop = MainLoop(model=model,
                                  FinishAfter(after_n_epochs=n_epochs), 
                                  Printing(),
                                  ProgressBar(),
-                                 Checkpoint(model_save, every_n_epochs=save_freq)]
+                                 Checkpoint(model_save,
+                                            every_n_epochs=save_freq,
+                                            save_separately=['model', 'log'])
+                     ]
             )
 
 main_loop.run() 

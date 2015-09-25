@@ -1,3 +1,4 @@
+#import argparse
 
 import theano, blocks, fuel
 import theano.tensor as T
@@ -13,7 +14,7 @@ from blocks.main_loop import MainLoop
 from blocks.model import Model
 from blocks.graph import ComputationGraph
 from blocks.extensions import FinishAfter, Printing
-from fuel.datasets import MNIST
+from fuel.datasets import BinarizedMNIST
 from fuel.streams import DataStream
 from fuel.schemes import SequentialScheme
 from fuel.transformers import Flatten
@@ -26,8 +27,9 @@ n_hidden = 500
 n_latent = 20
 batch_size = 100
 n_epochs = 4000
-learning_rate = 0.001
-save_freq = 10
+learning_rate = 0.0004
+save_freq = 20
+model_save = 'VAE_model2.pkl'
 
 x = T.matrix('features')
 
@@ -75,7 +77,7 @@ for layer in decoder_network.linear_transformations:
 decoder_network.initialize()
 
 
-mnist = MNIST(("train",), sources=('features',))
+mnist = BinarizedMNIST(("train",), sources=('features',))
 
 train_data_stream = Flatten(DataStream.default_stream(
         mnist,
@@ -103,7 +105,7 @@ main_loop = MainLoop(model=model,
                                  FinishAfter(after_n_epochs=n_epochs), 
                                  Printing(),
                                  ProgressBar(),
-                                 Checkpoint('VAE_model.zip',
+                                 Checkpoint(model_save,
                                             every_n_epochs=save_freq,
                                             save_separately=['model', 'log'])
                      ]

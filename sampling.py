@@ -6,14 +6,14 @@ from matplotlib import cm, pyplot
 from blocks.bricks import Random
 from blocks.graph import ComputationGraph
 from blocks.select import Selector
-from blocks.serialization import load
-
+#from blocks.serialization import load
+#from blocks.extensions import Load
 
 def make_sampling_computation_graph(model_path, num_samples):
-  #  f = file(model_path, 'rb')
-    main_loop = load(model_path)#cPickle.load(f)
-  #  f.close()
-    model = main_loop.model
+    f = file(model_path, 'rb')
+    model = cPickle.load(f)#main_loop = load(model_path)#
+    f.close()
+    #model = main_loop.model
     selector = Selector(model.top_bricks)
     decoder_mlp, = selector.select('/decoder_network').bricks
     theano_rng = Random().theano_rng
