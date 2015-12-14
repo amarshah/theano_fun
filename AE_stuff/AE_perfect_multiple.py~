@@ -1,0 +1,255 @@
+"""Learn a bijective autoencoder for generative modeling
+Use random input partition, rotation and nonlinearity"""
+
+import theano, numpy
+import theano.tensor as T
+from theano.tensor.shared_randomstreams import RandomStreams
+
+from blocks.algorithms import GradientDescent, Scale
+from blocks.extensions import ProgressBar
+from blocks.extensions.monitoring import DataStreamMonitoring
+from blocks.extensions.saveload import Checkpoint
+from blocks.main_loop import MainLoop
+from blocks.model import Model
+from blocks.extensions import FinishAfter, Printing
+from fuel.datasets import BinarizedMNIST
+from fuel.streams import DataStream
+from fuel.schemes import SequentialScheme
+from fuel.transformers import Flatten
+
+class HiddenLayer(object):
+    def __init__(self, rng, input, n_in, n_batch, d_bucket, activation, activation_deriv,
+                 w=None, index_permute=None, index_permute_reverse=None):
+        srng = RandomStreams(seed=234)
+        
+        n_bucket = n_in / d_bucket + 1
+        self.input = input
+
+        # randomly permute input space
+        if index_permute is None:
+            index_permute = srng.permutation(n=n_in)#numpy.random.permutation(n_in)
+            index_permute_reverse = T.argsort(index_permute)
+            self.index_permute = index_permute
+            self.index_permute_reverse = index_permute_reverse
+
+        permuted_input = input[:, index_permute]
+        self.permuted_input = permuted_input
+
+        # initialize reflection parameters
+        if w is None:
+            w_values = numpy.asarray(rng.uniform(low=-1,
+                                                 high=1,
+                                                 size=(n_bucket,d_bucket)),
+                                     dtype=theano.config.floatX)
+            w = theano.shared(value=w_values, name='w')
+            
+        self.w = w
+        
+        
+        # compute outputs and Jacobians
+        
+        log_jacobian = T.alloc(0, n_batch)
+        for b in xrange(n_bucket):
+            bucket_size = d_bucket
+            if b == n_bucket - 1:
+#                import pdb; pdb.set_trace()
+                bucket_size = n_in - b * d_bucket
+            
+            x_b = self.permuted_input[:, b*d_bucket:b*d_bucket + bucket_size]
+            w_b = w[b, :bucket_size]
+            W = T.eye(bucket_size) - 2 * T.outer(w_b, w_b) / ((w_b ** 2).sum())
+            lin_output_b = T.dot(x_b, W)
+            if b>0:
+                lin_output = T.concatenate([lin_output, lin_output_b], axis=1)
+            else:
+                lin_output = lin_output_b
+            if activation is not None:
+#                import pdb; pdb.set_trace()
+                derivs = activation_deriv(lin_output_b)
+                log_jacobian = log_jacobian + T.log(derivs).sum(axis=1)
+ 
+#                for n in xrange(n_batch):
+#                    mat = T.tile(T.reshape(derivs[n], [1, bucket_size]), (bucket_size, 1))
+#                    mat = mat * W
+                    
+#                    T.inc_subtensor(log_jacobian[n], T.log(T.abs_(T.nlinalg.Det()(mat))))
+                    
+        self.log_jacobian = log_jacobian        
+
+        self.output = (
+            lin_output if activation is None
+            else activation(lin_output)
+        )
+
+        self.params = [w]
+
+        
+
+class FinalLayer(object):
+    def __init__(self, input, n_in, n_batch, logv=None):
+        self.input = input
+
+        if logv is None:
+            logv = theano.shared(value=numpy.zeros([1, n_in]), name='logv')
+        
+        self.logv = logv
+
+        self.log_jacobian = T.alloc(logv.sum(), n_batch)  
+
+        self.output = T.tile(T.exp(logv), (n_batch, 1)) * input
+
+        self.params = [logv]
+
+
+class FullAE(object):
+    def __init__(self, rng, input, n_in, n_batch, d_bucket, activation, activation_deriv):
+
+        self.Hidden1 = HiddenLayer(
+            rng=rng,
+            input=input,
+            n_in=n_in,
+            n_batch=n_batch,
+            d_bucket=d_bucket,
+            activation=activation,
+            activation_deriv=activation_deriv
+        )
+
+        self.Hidden2 = HiddenLayer(
+            rng=rng,
+            input=self.Hidden1.output,
+            n_in=n_in,
+            n_batch=n_batch,
+            d_bucket=d_bucket,
+            activation=activation,
+            activation_deriv=activation_deriv
+        )
+
+        self.Hidden3 = HiddenLayer(
+            rng=rng,
+            input=self.Hidden2.output,
+            n_in=n_in,
+            n_batch=n_batch,
+            d_bucket=d_bucket,
+            activation=activation,
+            activation_deriv=activation_deriv
+        )
+
+        self.Hidden4 = HiddenLayer(
+            rng=rng,
+            input=self.Hidden3.output,
+            n_in=n_in,
+            n_batch=n_batch,
+            d_bucket=d_bucket,
+            activation=activation,
+            activation_deriv=activation_deriv
+        )
+
+        self.Final = FinalLayer(
+            input=self.Hidden4.output,
+            n_in=n_in,
+            n_batch=n_batch
+        )
+
+        self.input = input
+        
+        self.output = self.Final.output
+
+        self.log_jacobian = self.Hidden1.log_jacobian + self.Hidden2.log_jacobian \
+            + self.Hidden3.log_jacobian + self.Hidden4.log_jacobian \
+            + self.Final.log_jacobian 
+
+        self.params = self.Hidden1.params + self.Hidden2.params \
+            + self.Hidden3.params + self.Hidden4.params \
+            + self.Final.params
+
+        
+def nonlinearity(input, a=0.7, b=0.3):
+    y1 = a / b * input
+    y2 = a + (1 - a) / (1 - b) * (input - b)
+    ind = T.cast(T.le(input, b), theano.config.floatX)
+    return ind * y1 + (1 - ind) * y2
+
+def nonlinearity_deriv(input, a=0.7, b=0.3):
+    y1 = a / b
+    y2 = (1 - a) / (1 - b)
+    ind = T.cast(T.le(input, b), theano.config.floatX)
+    return ind * y1 + (1 - ind) * y2
+
+
+
+def train_AE(learning_rate=0.01, n_epochs=1000, batch_size=100, d_bucket=100,
+             activation=nonlinearity, activation_deriv=nonlinearity_deriv,
+             model_save='AE.pkl', save_freq=10):  
+
+
+    rng = numpy.random.RandomState(1234)
+    mnist = BinarizedMNIST(("train",), sources=('features',))
+
+
+    x = T.matrix('features')
+
+#    theano.config.compute_test_value = 'warn'    
+#    x.tag.test_value = numpy.random.rand(100, 28**2).astype('float32') 
+    
+    AE = FullAE(
+        rng=rng,
+        input=x,
+        n_in=28*28,
+        n_batch=batch_size,
+        d_bucket=d_bucket,
+        activation=activation,
+        activation_deriv=activation_deriv)
+
+    prior_term = (-0.5 * (T.log(2 * 3.14159) + AE.output ** 2).sum(axis=1)).mean() 
+    prior_term.name = 'log_prior'
+    log_jacobian = AE.log_jacobian.mean()
+    log_jacobian.name = 'log_jacobian'
+    cost = -(prior_term + log_jacobian)
+    cost.name = 'negative_log_probability'
+
+    params = AE.params
+
+
+
+    train_data_stream = Flatten(DataStream.default_stream(
+        mnist,
+        iteration_scheme=SequentialScheme(mnist.num_examples, batch_size=batch_size)))
+
+    monitor_data_stream = Flatten(DataStream.default_stream(
+        mnist,
+        iteration_scheme=SequentialScheme(mnist.num_examples, batch_size=batch_size)))
+
+    algorithm = GradientDescent(cost=cost, 
+                                parameters=params,
+                                step_rule=Scale(learning_rate=learning_rate))
+
+
+    monitor = DataStreamMonitoring(variables=[prior_term, log_jacobian, cost],
+                                   data_stream=monitor_data_stream,
+                                   prefix="train")
+
+    model = Model(cost)
+
+    main_loop = MainLoop(model=model,
+                         data_stream=train_data_stream, 
+                         algorithm=algorithm,
+                         extensions=[monitor, 
+                                     FinishAfter(after_n_epochs=n_epochs), 
+                                     Printing(),
+                                     ProgressBar(),
+                                     Checkpoint(model_save,
+                                                every_n_epochs=save_freq,
+                                                save_separately=['model', 'log'])
+                         ]
+                )
+
+    main_loop.run() 
+ 
+if __name__ == '__main__':
+    train_AE()
+            
+            
+
+
+
+

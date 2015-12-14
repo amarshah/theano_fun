@@ -1,0 +1,23 @@
+Using gpu device 1: GeForce GTX 750 (CNMeM is disabled)
+/u/shahamar/python_packages/Theano/theano/tensor/var.py:281: UserWarning: Warning, Cannot compute test value: input 0 (targets) of Op Shape(targets) missing default value
+  shape = property(lambda self: theano.tensor.basic.shape(self))
+/u/shahamar/python_packages/Theano/theano/tensor/var.py:518: UserWarning: Warning, Cannot compute test value: input 0 (Shape.0) of Op Subtensor{int64}(Shape.0, Constant{0}) missing default value
+  lambda entry: isinstance(entry, Variable)))
+/u/shahamar/python_packages/Theano/theano/tensor/basic.py:2796: UserWarning: Warning, Cannot compute test value: input 1 (Subtensor{int64}.0) of Op Alloc(TensorConstant{0}, Subtensor{int64}.0, TensorConstant{10}) missing default value
+  ret = super(Alloc, self).__call__(val, *shapes, **kwargs)
+/u/shahamar/python_packages/Theano/theano/tensor/basic.py:4878: UserWarning: Warning, Cannot compute test value: input 1 (Subtensor{int64}.0) of Op ARange{dtype='int64'}(TensorConstant{0}, Subtensor{int64}.0, TensorConstant{1}) missing default value
+  return _arange[dtype](start, stop, step)
+Traceback (most recent call last):
+  File "deep_fried_complex_RNN.py", line 300, in <module>
+    T.extra_ops.to_one_hot(y,10,dtype='int')).mean()
+  File "/u/shahamar/python_packages/Theano/theano/tensor/extra_ops.py", line 1083, in to_one_hot
+    ret = theano.tensor.set_subtensor(ret[theano.tensor.arange(y.shape[0]), y],
+  File "/u/shahamar/python_packages/Theano/theano/tensor/var.py", line 491, in __getitem__
+    return theano.tensor.subtensor.advanced_subtensor(self, *args)
+  File "/u/shahamar/python_packages/Theano/theano/gof/op.py", line 600, in __call__
+    node = self.make_node(*inputs, **kwargs)
+  File "/u/shahamar/python_packages/Theano/theano/tensor/subtensor.py", line 2127, in make_node
+    index = tuple(map(as_index_variable, index))
+  File "/u/shahamar/python_packages/Theano/theano/tensor/subtensor.py", line 2075, in as_index_variable
+    raise TypeError('index must be integers')
+TypeError: index must be integers

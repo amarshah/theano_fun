@@ -1,0 +1,12 @@
+
+
+def reverse_string(str):
+    n = len(str)
+    for i in range(n/2):
+        temp = str[i]
+        str[i] = str[n-1-i]
+        str[n-1-i] = temp
+
+    return str
+
+        
